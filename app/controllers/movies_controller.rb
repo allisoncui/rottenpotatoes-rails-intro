@@ -8,21 +8,39 @@ class MoviesController < ApplicationController
 
   def index
     @all_ratings = Movie.all_ratings
-
-    @ratings_to_show =
-      if params[:ratings].present?
-        params[:ratings].keys
-      else
-        @all_ratings
-      end
-
-      @sort_by = params[:sort_by]
-      allowed_sorts = %w[title release_date]
-      sort_column   = allowed_sorts.include?(@sort_by) ? @sort_by : nil
-    
-      @movies = Movie.with_ratings(@ratings_to_show)
-      @movies = @movies.order(sort_column => :asc) if sort_column
+  
+    if params[:ratings].present?
+      @ratings_to_show   = params[:ratings].keys
+      session[:ratings]  = params[:ratings]
+    elsif session[:ratings].present?
+      @ratings_to_show   = session[:ratings].keys
+      @restore_ratings   = true
+    else
+      @ratings_to_show   = @all_ratings
+    end
+  
+    allowed_sorts = %w[title release_date]
+    if params[:sort_by].present? && allowed_sorts.include?(params[:sort_by])
+      @sort_by          = params[:sort_by]
+      session[:sort_by] = @sort_by
+    elsif session[:sort_by].present? && allowed_sorts.include?(session[:sort_by])
+      @sort_by        = session[:sort_by]
+      @restore_sort   = true
+    else
+      @sort_by = nil
+    end
+  
+    if @restore_ratings || @restore_sort
+      ratings_hash = Hash[@ratings_to_show.map { |r| [r, "1"] }]
+      return redirect_to movies_path(sort_by: @sort_by, ratings: ratings_hash)
+    end
+  
+    scope   = Movie.with_ratings(@ratings_to_show)
+    scope   = scope.reorder(nil)
+    scope   = scope.order(@sort_by => :asc) if @sort_by
+    @movies = scope
   end
+  
 
   def new
     # default: render 'new' template
